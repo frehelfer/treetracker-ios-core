@@ -19,9 +19,11 @@ public enum MessagingServiceError: Swift.Error {
 class RemoteMessagesService: MessagingService {
 
     private let apiService: APIServiceProtocol
+    private let coreDataManager: CoreDataManaging
 
-    init(apiService: APIServiceProtocol) {
+    init(apiService: APIServiceProtocol, coreDataManager: CoreDataManaging) {
         self.apiService = apiService
+        self.coreDataManager = coreDataManager
     }
 
     func getMessages(planter: Planter, completion: @escaping (Result<[Message], Error>) -> Void) {

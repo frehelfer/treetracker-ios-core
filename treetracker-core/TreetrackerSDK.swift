@@ -145,7 +145,10 @@ public class TreetrackerSDK: NSObject {
     }
 
     public var messagingService: MessagingService {
-        return RemoteMessagesService(apiService: self.apiService)
+        return RemoteMessagesService(
+            apiService: self.apiService,
+            coreDataManager: self.coreDataManager
+        )
     }
 
     // Initializers
