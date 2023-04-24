@@ -57,28 +57,53 @@ class RemoteMessagesService: MessagingService {
         } else {
             return nil
         }
-        
+
     }
-    
+
+    func getMessagesByType() -> [String : [MessageEntity]]? {
+
+            var messagesByType: [String : [MessageEntity]] = [:]
+
+            // fetch all messages and create and array of arrays. [Cell] -> [Message]
+            if let allMessages = coreDataManager.perform(fetchRequest: allMessages) {
+
+                for message in allMessages {
+
+                    let messageType = message.type ?? ""
+
+                    if var array = messagesByType[messageType] {
+
+                        array.append(message)
+                        messagesByType[messageType] = array
+
+                    } else {
+                        messagesByType[messageType] = [message]
+                    }
+                }
+            }
+
+            return nil
+        }
+
     // MARK: - Private actions
     private func saveNewFetchedMessages(apiMessages: [Message]) {
-        
+
         var newMessages: [Message] = []
-        
+
         // fetch messagens from coreData
         if let savedMessages = coreDataManager.perform(fetchRequest: allMessages) {
-            
+
             // check if downloaded messagens exists in coreData
             for apiMessage in apiMessages {
                 if !savedMessages.contains(where: { $0.messageId == apiMessage.messageId }) {
                     newMessages.append(apiMessage)
                 }
             }
-            
+
         } else {
             newMessages = apiMessages
         }
-        
+
         // save new messages on coreData
         for message in newMessages {
             let newMessage = MessageEntity(context: coreDataManager.viewContext)
@@ -91,12 +116,12 @@ class RemoteMessagesService: MessagingService {
             newMessage.type = message.type.rawValue
             newMessage.composedAt = message.composedAt
             newMessage.videoLink = message.videoLink
-            
+
             newMessage.unread = true
-            
+
             // TODO: add survey & surverResponse variables to coredata.
         }
-        
+
         // save new messages
         coreDataManager.saveContext()
     }
@@ -104,16 +129,16 @@ class RemoteMessagesService: MessagingService {
 
 // MARK: - Fetch Requests
 extension MessagingService {
-    
+
     var allMessages: NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         return fetchRequest
     }
-    
+
     var messagesUnread: NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "unread == true")
         return fetchRequest
     }
-    
+
 }
