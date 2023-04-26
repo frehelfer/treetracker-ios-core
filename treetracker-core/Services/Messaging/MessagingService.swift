@@ -10,7 +10,8 @@ import CoreData
 
 public protocol MessagingService {
     func getMessages(planter: Planter, completion: @escaping (Result<[Message], Error>) -> Void)
-    func getUnreadMessagesCount() -> Int?
+    func getUnreadMessagesCount(planter: Planter) -> Int?
+    func getSavedMessages(planter: Planter) -> [MessageEntity]
 }
 
 // MARK: - Errors
@@ -43,7 +44,7 @@ class RemoteMessagesService: MessagingService {
         apiService.performAPIRequest(request: request) { [weak self] result in
             switch result {
             case .success(let response):
-                self?.saveNewFetchedMessages(apiMessages: response.messages)
+                self?.saveNewFetchedMessages(planter: planter, apiMessages: response.messages)
                 completion(.success(response.messages))
             case .failure(let error):
                 completion(.failure(error))
@@ -51,8 +52,9 @@ class RemoteMessagesService: MessagingService {
         }
     }
 
-    func getUnreadMessagesCount() -> Int? {
-        if let messages = coreDataManager.perform(fetchRequest: messagesUnread) {
+    func getUnreadMessagesCount(planter: Planter) -> Int? {
+
+        if let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: planter)) {
             return messages.count
         } else {
             return nil
@@ -60,40 +62,21 @@ class RemoteMessagesService: MessagingService {
 
     }
 
-    func getMessagesByType() -> [String : [MessageEntity]]? {
-
-            var messagesByType: [String : [MessageEntity]] = [:]
-
-            // fetch all messages and create and array of arrays. [Cell] -> [Message]
-            if let allMessages = coreDataManager.perform(fetchRequest: allMessages) {
-
-                for message in allMessages {
-
-                    let messageType = message.type ?? ""
-
-                    if var array = messagesByType[messageType] {
-
-                        array.append(message)
-                        messagesByType[messageType] = array
-
-                    } else {
-                        messagesByType[messageType] = [message]
-                    }
-                }
-            }
-
-            return nil
+    func getSavedMessages(planter: Planter) -> [MessageEntity] {
+        if let messages = coreDataManager.perform(fetchRequest: allMessages(for: planter)) {
+            return messages
         }
 
+        return []
+    }
+
     // MARK: - Private actions
-    private func saveNewFetchedMessages(apiMessages: [Message]) {
+    private func saveNewFetchedMessages(planter: Planter, apiMessages: [Message]) {
 
         var newMessages: [Message] = []
 
-        // fetch messagens from coreData
-        if let savedMessages = coreDataManager.perform(fetchRequest: allMessages) {
+        if let savedMessages = coreDataManager.perform(fetchRequest: allMessages(for: planter)) {
 
-            // check if downloaded messagens exists in coreData
             for apiMessage in apiMessages {
                 if !savedMessages.contains(where: { $0.messageId == apiMessage.messageId }) {
                     newMessages.append(apiMessage)
@@ -104,7 +87,6 @@ class RemoteMessagesService: MessagingService {
             newMessages = apiMessages
         }
 
-        // save new messages on coreData
         for message in newMessages {
             let newMessage = MessageEntity(context: coreDataManager.viewContext)
             newMessage.messageId = message.messageId
@@ -117,12 +99,13 @@ class RemoteMessagesService: MessagingService {
             newMessage.composedAt = message.composedAt
             newMessage.videoLink = message.videoLink
 
+            // TODO: Get planterIdentification and delete this entity bellow? Make the link in coreData?
+            newMessage.identifier = planter.identifier
             newMessage.unread = true
 
             // TODO: add survey & surverResponse variables to coredata.
         }
 
-        // save new messages
         coreDataManager.saveContext()
     }
 }
@@ -130,14 +113,18 @@ class RemoteMessagesService: MessagingService {
 // MARK: - Fetch Requests
 extension MessagingService {
 
-    var allMessages: NSFetchRequest<MessageEntity> {
+    func allMessages(for planter: Planter) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "identifier == %@", planter.identifier ?? "")
         return fetchRequest
     }
 
-    var messagesUnread: NSFetchRequest<MessageEntity> {
+    func messagesUnread(for planter: Planter) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "unread == true")
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "identifier == %@", planter.identifier ?? ""),
+            NSPredicate(format: "unread == true")
+        ])
         return fetchRequest
     }
 
