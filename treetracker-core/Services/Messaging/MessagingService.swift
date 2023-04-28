@@ -9,8 +9,8 @@ import Foundation
 import CoreData
 
 public protocol MessagingService {
-    func getMessages(planter: Planter, completion: @escaping (Result<[Message], Error>) -> Void)
-    func getUnreadMessagesCount(planter: Planter) -> Int?
+    func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void)
+    func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void)
     func getSavedMessages(planter: Planter) -> [MessageEntity]
 }
 
@@ -29,9 +29,10 @@ class RemoteMessagesService: MessagingService {
         self.coreDataManager = coreDataManager
     }
 
-    func getMessages(planter: Planter, completion: @escaping (Result<[Message], Error>) -> Void) {
+    // sync messages
+    func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void) {
 
-        guard let walletHandle = planter.identifier else {
+        guard let walletHandle = planter.firstName else {
             completion(.failure(MessagingServiceError.missingPlanterIdentifier))
             return
         }
@@ -44,22 +45,36 @@ class RemoteMessagesService: MessagingService {
         apiService.performAPIRequest(request: request) { [weak self] result in
             switch result {
             case .success(let response):
-                self?.saveNewFetchedMessages(planter: planter, apiMessages: response.messages)
-                completion(.success(response.messages))
+                guard let self else { return }
+                print("Downloaded: \(response.messages.count) messages")
+                let allMessages = saveNewFetchedMessages(planter: planter, apiMessages: response.messages)
+                completion(.success(allMessages))
             case .failure(let error):
+                print("Networking Error: \(error.localizedDescription)")
                 completion(.failure(error))
             }
         }
     }
 
-    func getUnreadMessagesCount(planter: Planter) -> Int? {
-
-        if let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: planter)) {
-            return messages.count
-        } else {
-            return nil
+    func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void) {
+        
+        getMessages(planter: planter) { [weak self] result in
+            switch result {
+            case .success(let allMessages):
+                
+                let count = allMessages.reduce(0) { $0 + ($1.unread ? 1 : 0) }
+                completion(count)
+                
+            case .failure(_):
+                
+                guard let self else { return }
+                if let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: planter)) {
+                    completion(messages.count)
+                } else {
+                    completion(0)
+                }
+            }
         }
-
     }
 
     func getSavedMessages(planter: Planter) -> [MessageEntity] {
@@ -71,11 +86,13 @@ class RemoteMessagesService: MessagingService {
     }
 
     // MARK: - Private actions
-    private func saveNewFetchedMessages(planter: Planter, apiMessages: [Message]) {
+    private func saveNewFetchedMessages(planter: Planter, apiMessages: [Message]) -> [MessageEntity] {
 
         var newMessages: [Message] = []
+        var returnMessages: [MessageEntity] = []
 
         if let savedMessages = coreDataManager.perform(fetchRequest: allMessages(for: planter)) {
+            returnMessages = savedMessages
 
             for apiMessage in apiMessages {
                 if !savedMessages.contains(where: { $0.messageId == apiMessage.messageId }) {
@@ -104,9 +121,12 @@ class RemoteMessagesService: MessagingService {
             newMessage.unread = true
 
             // TODO: add survey & surverResponse variables to coredata.
+            returnMessages.append(newMessage)
         }
 
         coreDataManager.saveContext()
+        
+        return returnMessages
     }
 }
 
@@ -116,6 +136,7 @@ extension MessagingService {
     func allMessages(for planter: Planter) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "identifier == %@", planter.identifier ?? "")
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: true)]
         return fetchRequest
     }
 
