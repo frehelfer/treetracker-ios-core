@@ -12,6 +12,7 @@ public protocol MessagingService {
     func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void)
     func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void)
     func getSavedMessages(planter: Planter) -> [MessageEntity]
+    func updateUnreadMessages(planter: Planter, messageId: [String])
 }
 
 // MARK: - Errors
@@ -85,6 +86,19 @@ class RemoteMessagesService: MessagingService {
         return []
     }
 
+    func updateUnreadMessages(planter: Planter, messageId: [String]) {
+        
+        guard let unreadMessages = coreDataManager.perform(fetchRequest: messagesUnread(for: planter)) else { return }
+        
+        for id in messageId {
+            if let index = unreadMessages.firstIndex(where: { $0.messageId! == id }) {
+                unreadMessages[index].unread = false
+            }
+        }
+        
+        coreDataManager.saveContext()
+    }
+
     // MARK: - Private actions
     private func saveNewFetchedMessages(planter: Planter, apiMessages: [Message]) -> [MessageEntity] {
 
@@ -118,6 +132,7 @@ class RemoteMessagesService: MessagingService {
 
             // TODO: Get planterIdentification and delete this entity bellow? Make the link in coreData?
             newMessage.identifier = planter.identifier
+            newMessage.uploaded = true
             newMessage.unread = true
 
             // TODO: add survey & surverResponse variables to coredata.

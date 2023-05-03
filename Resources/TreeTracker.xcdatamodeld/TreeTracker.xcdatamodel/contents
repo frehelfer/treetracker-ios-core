@@ -21,6 +21,7 @@
         <attribute name="to" optional="YES" attributeType="String"/>
         <attribute name="type" optional="YES" attributeType="String"/>
         <attribute name="unread" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="uploaded" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="videoLink" optional="YES" attributeType="String"/>
     </entity>
     <entity name="PlanterDetail" representedClassName="PlanterDetail" syncable="YES" codeGenerationType="class">
