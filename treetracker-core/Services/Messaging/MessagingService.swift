@@ -12,7 +12,7 @@ public protocol MessagingService {
     func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void)
     func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void)
     func getSavedMessages(planter: Planter) -> [MessageEntity]
-    func updateUnreadMessages(planter: Planter, messageId: [String])
+    func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
 }
 
 // MARK: - Errors
@@ -86,17 +86,10 @@ class RemoteMessagesService: MessagingService {
         return []
     }
 
-    func updateUnreadMessages(planter: Planter, messageId: [String]) {
-        
-        guard let unreadMessages = coreDataManager.perform(fetchRequest: messagesUnread(for: planter)) else { return }
-        
-        for id in messageId {
-            if let index = unreadMessages.firstIndex(where: { $0.messageId! == id }) {
-                unreadMessages[index].unread = false
-            }
-        }
-        
+    func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity] {
+        messages.forEach({ $0.unread = false })
         coreDataManager.saveContext()
+        return messages
     }
 
     // MARK: - Private actions
