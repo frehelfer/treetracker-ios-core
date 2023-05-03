@@ -13,6 +13,7 @@ public protocol MessagingService {
     func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void)
     func getSavedMessages(planter: Planter) -> [MessageEntity]
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
+    func createMessage(planter: Planter, text: String) throws -> MessageEntity
 }
 
 // MARK: - Errors
@@ -33,6 +34,7 @@ class RemoteMessagesService: MessagingService {
     // sync messages
     func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void) {
 
+        // TODO: change to planter.identifier
         guard let walletHandle = planter.firstName else {
             completion(.failure(MessagingServiceError.missingPlanterIdentifier))
             return
@@ -90,6 +92,36 @@ class RemoteMessagesService: MessagingService {
         messages.forEach({ $0.unread = false })
         coreDataManager.saveContext()
         return messages
+    }
+    
+    func createMessage(planter: Planter, text: String) throws -> MessageEntity {
+        
+        // TODO: change to planter.identifier
+        guard let handle = planter.firstName else {
+            throw MessagingServiceError.missingPlanterIdentifier
+        }
+        
+        let dateFormatter = ISO8601DateFormatter()
+        let formattedDate = dateFormatter.string(from: Date())
+        
+        let newMessage = MessageEntity(context: coreDataManager.viewContext)
+        newMessage.messageId = UUID().uuidString
+        newMessage.type = "message"
+        newMessage.parentMessageId = nil
+        newMessage.from = handle
+        newMessage.to = "admin"
+        newMessage.subject = nil
+        newMessage.body = text
+        newMessage.composedAt = formattedDate
+        newMessage.videoLink = nil
+
+        // TODO: Get planterIdentification and delete this entity bellow? Make the link in coreData?
+        newMessage.identifier = handle
+        newMessage.uploaded = false
+        newMessage.unread = false
+        
+        coreDataManager.saveContext()
+        return newMessage
     }
 
     // MARK: - Private actions
