@@ -49,11 +49,9 @@ class RemoteMessagesService: MessagingService {
             switch result {
             case .success(let response):
                 guard let self else { return }
-                print("Downloaded: \(response.messages.count) messages")
                 let allMessages = saveNewFetchedMessages(planter: planter, apiMessages: response.messages)
                 completion(.success(allMessages))
             case .failure(let error):
-                print("Networking Error: \(error.localizedDescription)")
                 completion(.failure(error))
             }
         }
@@ -70,8 +68,16 @@ class RemoteMessagesService: MessagingService {
                 
             case .failure(_):
                 
-                guard let self else { return }
-                if let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: planter)) {
+                guard
+                    let self,
+                    let planter = planter as? PlanterDetail,
+                    let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+                else {
+                    completion(0)
+                    return
+                }
+                
+                if let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: latestPlanterIdentification)) {
                     completion(messages.count)
                 } else {
                     completion(0)
@@ -81,7 +87,15 @@ class RemoteMessagesService: MessagingService {
     }
 
     func getSavedMessages(planter: Planter) -> [MessageEntity] {
-        if let messages = coreDataManager.perform(fetchRequest: allMessages(for: planter)) {
+        
+        guard
+            let planter = planter as? PlanterDetail,
+            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+        else {
+            return []
+        }
+        
+        if let messages = coreDataManager.perform(fetchRequest: allMessages(for: latestPlanterIdentification)) {
             return messages
         }
 
@@ -95,15 +109,19 @@ class RemoteMessagesService: MessagingService {
     }
     
     func createMessage(planter: Planter, text: String) throws -> MessageEntity {
-        
+ 
         // TODO: change to planter.identifier
-        guard let handle = planter.firstName else {
+        guard
+            let handle = planter.firstName,
+            let planter = planter as? PlanterDetail,
+            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+        else {
             throw MessagingServiceError.missingPlanterIdentifier
         }
-        
+
         let dateFormatter = ISO8601DateFormatter()
         let formattedDate = dateFormatter.string(from: Date())
-        
+
         let newMessage = MessageEntity(context: coreDataManager.viewContext)
         newMessage.messageId = UUID().uuidString
         newMessage.type = "message"
@@ -115,22 +133,27 @@ class RemoteMessagesService: MessagingService {
         newMessage.composedAt = formattedDate
         newMessage.videoLink = nil
 
-        // TODO: Get planterIdentification and delete this entity bellow? Make the link in coreData?
-        newMessage.identifier = handle
         newMessage.uploaded = false
         newMessage.unread = false
-        
+
+        latestPlanterIdentification.addToMessages(newMessage)
+
         coreDataManager.saveContext()
         return newMessage
     }
 
     // MARK: - Private actions
     private func saveNewFetchedMessages(planter: Planter, apiMessages: [Message]) -> [MessageEntity] {
+        
+        guard
+            let planter = planter as? PlanterDetail,
+            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+        else { return [] }
 
         var newMessages: [Message] = []
         var returnMessages: [MessageEntity] = []
 
-        if let savedMessages = coreDataManager.perform(fetchRequest: allMessages(for: planter)) {
+        if let savedMessages = coreDataManager.perform(fetchRequest: allMessages(for: latestPlanterIdentification)) {
             returnMessages = savedMessages
 
             for apiMessage in apiMessages {
@@ -155,17 +178,15 @@ class RemoteMessagesService: MessagingService {
             newMessage.composedAt = message.composedAt
             newMessage.videoLink = message.videoLink
 
-            // TODO: Get planterIdentification and delete this entity bellow? Make the link in coreData?
-            newMessage.identifier = planter.identifier
             newMessage.uploaded = true
             newMessage.unread = true
 
+            latestPlanterIdentification.addToMessages(newMessage)
             // TODO: add survey & surverResponse variables to coredata.
             returnMessages.append(newMessage)
         }
 
         coreDataManager.saveContext()
-        
         return returnMessages
     }
 }
@@ -173,17 +194,17 @@ class RemoteMessagesService: MessagingService {
 // MARK: - Fetch Requests
 extension MessagingService {
 
-    func allMessages(for planter: Planter) -> NSFetchRequest<MessageEntity> {
+    func allMessages(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "identifier == %@", planter.identifier ?? "")
+        fetchRequest.predicate = NSPredicate(format: "planterIdentification == %@", planterIdentification)
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: true)]
         return fetchRequest
     }
 
-    func messagesUnread(for planter: Planter) -> NSFetchRequest<MessageEntity> {
+    func messagesUnread(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "identifier == %@", planter.identifier ?? ""),
+            NSPredicate(format: "planterIdentification == %@", planterIdentification),
             NSPredicate(format: "unread == true")
         ])
         return fetchRequest
