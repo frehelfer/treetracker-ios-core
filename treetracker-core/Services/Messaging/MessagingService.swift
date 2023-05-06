@@ -9,7 +9,6 @@ import Foundation
 import CoreData
 
 public protocol MessagingService {
-    func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void)
     func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void)
     func getSavedMessages(planter: Planter) -> [MessageEntity]
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
@@ -19,6 +18,7 @@ public protocol MessagingService {
 // MARK: - Errors
 public enum MessagingServiceError: Swift.Error {
     case missingPlanterIdentifier
+    case noMessagesToUpload
 }
 
 class RemoteMessagesService: MessagingService {
@@ -31,8 +31,8 @@ class RemoteMessagesService: MessagingService {
         self.coreDataManager = coreDataManager
     }
 
-    // sync messages
-    func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void) {
+    // MARK: - Sync Messages with Server
+    private func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void) {
 
         // TODO: change to planter.identifier
         guard let walletHandle = planter.firstName else {
@@ -48,6 +48,7 @@ class RemoteMessagesService: MessagingService {
         apiService.performAPIRequest(request: request) { [weak self] result in
             switch result {
             case .success(let response):
+                print("🟢 Fetched \(response.messages.count) messages from server.")
                 guard let self else { return }
                 let allMessages = saveNewFetchedMessages(planter: planter, apiMessages: response.messages)
                 completion(.success(allMessages))
@@ -56,50 +57,35 @@ class RemoteMessagesService: MessagingService {
             }
         }
     }
-
-    func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void) {
+    
+    private func postMessages(completion: @escaping (Result<PostMessagesResponse, Error>) -> Void) {
         
-        getMessages(planter: planter) { [weak self] result in
+        guard
+            let messages = coreDataManager.perform(fetchRequest: messagesToUpload),
+            !messages.isEmpty
+        else {
+            completion(.failure(MessagingServiceError.noMessagesToUpload))
+            return
+        }
+        
+        let request = PostMessagesRequest(messages: messages)
+        
+        apiService.performAPIRequest(request: request) { [weak self] result in
             switch result {
-            case .success(let allMessages):
-                
-                let count = allMessages.reduce(0) { $0 + ($1.unread ? 1 : 0) }
-                completion(count)
-                
-            case .failure(_):
-                
-                guard
-                    let self,
-                    let planter = planter as? PlanterDetail,
-                    let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
-                else {
-                    completion(0)
-                    return
-                }
-                
-                if let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: latestPlanterIdentification)) {
-                    completion(messages.count)
-                } else {
-                    completion(0)
-                }
+            case .success(let response):
+                guard let self else { return }
+                updateUploadedMessages(messages: messages)
+                completion(.success(response))
+            case .failure(let error):
+                completion(.failure(error))
             }
         }
     }
 
-    func getSavedMessages(planter: Planter) -> [MessageEntity] {
-        
-        guard
-            let planter = planter as? PlanterDetail,
-            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
-        else {
-            return []
-        }
-        
-        if let messages = coreDataManager.perform(fetchRequest: allMessages(for: latestPlanterIdentification)) {
-            return messages
-        }
-
-        return []
+    // MARK: - Update Messages on DB
+    private func updateUploadedMessages(messages: [MessageEntity]) {
+        messages.forEach({ $0.uploaded = true })
+        coreDataManager.saveContext()
     }
 
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity] {
@@ -107,42 +93,8 @@ class RemoteMessagesService: MessagingService {
         coreDataManager.saveContext()
         return messages
     }
-    
-    func createMessage(planter: Planter, text: String) throws -> MessageEntity {
- 
-        // TODO: change to planter.identifier
-        guard
-            let handle = planter.firstName,
-            let planter = planter as? PlanterDetail,
-            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
-        else {
-            throw MessagingServiceError.missingPlanterIdentifier
-        }
 
-        let dateFormatter = ISO8601DateFormatter()
-        let formattedDate = dateFormatter.string(from: Date())
-
-        let newMessage = MessageEntity(context: coreDataManager.viewContext)
-        newMessage.messageId = UUID().uuidString
-        newMessage.type = "message"
-        newMessage.parentMessageId = nil
-        newMessage.from = handle
-        newMessage.to = "admin"
-        newMessage.subject = nil
-        newMessage.body = text
-        newMessage.composedAt = formattedDate
-        newMessage.videoLink = nil
-
-        newMessage.uploaded = false
-        newMessage.unread = false
-
-        latestPlanterIdentification.addToMessages(newMessage)
-
-        coreDataManager.saveContext()
-        return newMessage
-    }
-
-    // MARK: - Private actions
+    // MARK: - Save Messages on DB
     private func saveNewFetchedMessages(planter: Planter, apiMessages: [Message]) -> [MessageEntity] {
         
         guard
@@ -189,6 +141,96 @@ class RemoteMessagesService: MessagingService {
         coreDataManager.saveContext()
         return returnMessages
     }
+    
+    // MARK: - Get Messages from DB
+    func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void) {
+        
+        postMessages { result in
+            switch result {
+            case .success(_):
+                print("🟢 Upload Message Successfully")
+            case .failure(let error):
+                print("🚨 Post Message Error: \(error)")
+            }
+        }
+        
+        getMessages(planter: planter) { [weak self] result in
+            switch result {
+            case .success(let allMessages):
+                
+                let count = allMessages.reduce(0) { $0 + ($1.unread ? 1 : 0) }
+                completion(count)
+                
+            case .failure(_):
+                
+                guard
+                    let self,
+                    let planter = planter as? PlanterDetail,
+                    let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+                else {
+                    completion(0)
+                    return
+                }
+                
+                if let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: latestPlanterIdentification)) {
+                    completion(messages.count)
+                } else {
+                    completion(0)
+                }
+            }
+        }
+    }
+
+    func getSavedMessages(planter: Planter) -> [MessageEntity] {
+        
+        guard
+            let planter = planter as? PlanterDetail,
+            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+        else {
+            return []
+        }
+        
+        if let messages = coreDataManager.perform(fetchRequest: allMessages(for: latestPlanterIdentification)) {
+            return messages
+        }
+
+        return []
+    }
+
+    // MARK: - Create New Message
+    func createMessage(planter: Planter, text: String) throws -> MessageEntity {
+ 
+        // TODO: change to planter.identifier
+        guard
+            let handle = planter.firstName,
+            let planter = planter as? PlanterDetail,
+            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+        else {
+            throw MessagingServiceError.missingPlanterIdentifier
+        }
+
+        let dateFormatter = ISO8601DateFormatter()
+        let formattedDate = dateFormatter.string(from: Date())
+
+        let newMessage = MessageEntity(context: coreDataManager.viewContext)
+        newMessage.messageId = UUID().uuidString
+        newMessage.type = "message"
+        newMessage.parentMessageId = nil
+        newMessage.from = handle
+        newMessage.to = "admin"
+        newMessage.subject = nil
+        newMessage.body = text
+        newMessage.composedAt = formattedDate
+        newMessage.videoLink = nil
+
+        newMessage.uploaded = false
+        newMessage.unread = false
+
+        latestPlanterIdentification.addToMessages(newMessage)
+
+        coreDataManager.saveContext()
+        return newMessage
+    }
 }
 
 // MARK: - Fetch Requests
@@ -207,6 +249,12 @@ extension MessagingService {
             NSPredicate(format: "planterIdentification == %@", planterIdentification),
             NSPredicate(format: "unread == true")
         ])
+        return fetchRequest
+    }
+    
+    var messagesToUpload: NSFetchRequest<MessageEntity> {
+        let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "uploaded == false")
         return fetchRequest
     }
 
