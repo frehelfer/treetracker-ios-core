@@ -87,7 +87,11 @@ class RemoteMessagesService: MessagingService {
     }
 
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity] {
-        messages.forEach({ $0.unread = false })
+        messages.forEach { message in
+            if message.unread == true {
+                message.unread = false
+            }
+        }
         coreDataManager.saveContext()
         return messages
     }
