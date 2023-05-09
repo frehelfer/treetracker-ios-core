@@ -1,7 +1,7 @@
 import Foundation
 
 protocol APIServiceProtocol {
-    func performAPIRequest<Request: APIRequest>(request: Request, completion: @escaping (Result<Request.ResponseType, Error>) -> Void)
+    func performAPIRequest<Request: APIRequest>(request: Request, completion: @escaping (Result<Request.ResponseType?, Error>) -> Void)
 }
 
 class APIService: APIServiceProtocol {
@@ -18,7 +18,7 @@ class APIService: APIServiceProtocol {
         ]
     }
 
-    func performAPIRequest<Request: APIRequest>(request: Request, completion: @escaping (Result<Request.ResponseType, Error>) -> Void) {
+    func performAPIRequest<Request: APIRequest>(request: Request, completion: @escaping (Result<Request.ResponseType?, Error>) -> Void) {
 
         let urlRequest = request.urlRequest(rootURL: rootURL, headers: headers)
 
@@ -31,8 +31,14 @@ class APIService: APIServiceProtocol {
                     return
                 }
 
-                guard let data else {
-                    completion(.failure(APIServiceError.missingData))
+                guard let response = response as? HTTPURLResponse,
+                    200...299 ~= response.statusCode else {
+                    completion(.failure(APIServiceError.badHTTPURLResponse))
+                    return
+                }
+
+                guard let data, !data.isEmpty else {
+                    completion(.success(nil))
                     return
                 }
 
@@ -52,5 +58,5 @@ class APIService: APIServiceProtocol {
 // MARK: - Errors
 enum APIServiceError: Swift.Error {
     case missingRootURL
-    case missingData
+    case badHTTPURLResponse
 }

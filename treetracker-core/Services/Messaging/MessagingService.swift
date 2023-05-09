@@ -48,8 +48,8 @@ class RemoteMessagesService: MessagingService {
         apiService.performAPIRequest(request: request) { [weak self] result in
             switch result {
             case .success(let response):
-                print("🟢 Fetched \(response.messages.count) messages from server.")
-                guard let self else { return }
+                print("🟢 Fetched \(response?.messages.count) messages from server.")
+                guard let self, let response else { return }
                 let allMessages = saveNewFetchedMessages(planter: planter, apiMessages: response.messages)
                 completion(.success(allMessages))
             case .failure(let error):
@@ -57,34 +57,32 @@ class RemoteMessagesService: MessagingService {
             }
         }
     }
-    
-    private func postMessages(completion: @escaping (Result<PostMessagesResponse, Error>) -> Void) {
-        
-        guard
-            let messages = coreDataManager.perform(fetchRequest: messagesToUpload),
-            !messages.isEmpty
-        else {
-            completion(.failure(MessagingServiceError.noMessagesToUpload))
+
+    private func postMessages() {
+
+        guard let messages = coreDataManager.perform(fetchRequest: messagesToUpload), !messages.isEmpty else {
             return
         }
-        
-        let request = PostMessagesRequest(messages: messages)
-        
-        apiService.performAPIRequest(request: request) { [weak self] result in
-            switch result {
-            case .success(let response):
-                guard let self else { return }
-                updateUploadedMessages(messages: messages)
-                completion(.success(response))
-            case .failure(let error):
-                completion(.failure(error))
+
+        messages.forEach { message in
+            let request = PostMessagesRequest(message: message)
+
+            apiService.performAPIRequest(request: request) { [weak self] result in
+                switch result {
+                case .success(_):
+                    guard let self else { return }
+                    updateUploadedMessages(message: message)
+                    print("✅ Upload Messages Successfully")
+                case .failure(let error):
+                    print("🚨 Post Message Error: \(error)")
+                }
             }
         }
     }
 
     // MARK: - Update Messages on DB
-    private func updateUploadedMessages(messages: [MessageEntity]) {
-        messages.forEach({ $0.uploaded = true })
+    private func updateUploadedMessages(message: MessageEntity) {
+        message.uploaded = true
         coreDataManager.saveContext()
     }
 
@@ -96,7 +94,7 @@ class RemoteMessagesService: MessagingService {
 
     // MARK: - Save Messages on DB
     private func saveNewFetchedMessages(planter: Planter, apiMessages: [Message]) -> [MessageEntity] {
-        
+
         guard
             let planter = planter as? PlanterDetail,
             let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
@@ -141,19 +139,12 @@ class RemoteMessagesService: MessagingService {
         coreDataManager.saveContext()
         return returnMessages
     }
-    
+
     // MARK: - Get Messages from DB
     func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void) {
-        
-        postMessages { result in
-            switch result {
-            case .success(_):
-                print("🟢 Upload Message Successfully")
-            case .failure(let error):
-                print("🚨 Post Message Error: \(error)")
-            }
-        }
-        
+
+        postMessages()
+
         getMessages(planter: planter) { [weak self] result in
             switch result {
             case .success(let allMessages):
@@ -182,14 +173,14 @@ class RemoteMessagesService: MessagingService {
     }
 
     func getSavedMessages(planter: Planter) -> [MessageEntity] {
-        
+
         guard
             let planter = planter as? PlanterDetail,
             let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
         else {
             return []
         }
-        
+
         if let messages = coreDataManager.perform(fetchRequest: allMessages(for: latestPlanterIdentification)) {
             return messages
         }
@@ -213,7 +204,7 @@ class RemoteMessagesService: MessagingService {
         let formattedDate = dateFormatter.string(from: Date())
 
         let newMessage = MessageEntity(context: coreDataManager.viewContext)
-        newMessage.messageId = UUID().uuidString
+        newMessage.messageId = UUID().uuidString.lowercased()
         newMessage.type = "message"
         newMessage.parentMessageId = nil
         newMessage.from = handle
@@ -251,11 +242,10 @@ extension MessagingService {
         ])
         return fetchRequest
     }
-    
+
     var messagesToUpload: NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "uploaded == false")
         return fetchRequest
     }
-
 }
