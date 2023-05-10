@@ -129,7 +129,7 @@ class RemoteMessagesService: MessagingService {
             newMessage.subject = message.subject
             newMessage.body = message.body
             newMessage.type = message.type.rawValue
-            newMessage.composedAt = message.composedAt
+            newMessage.composedAt = ISO8601DateFormatter().date(from: message.composedAt)
             newMessage.videoLink = message.videoLink
 
             newMessage.uploaded = true
@@ -204,9 +204,6 @@ class RemoteMessagesService: MessagingService {
             throw MessagingServiceError.missingPlanterIdentifier
         }
 
-        let dateFormatter = ISO8601DateFormatter()
-        let formattedDate = dateFormatter.string(from: Date())
-
         let newMessage = MessageEntity(context: coreDataManager.viewContext)
         newMessage.messageId = UUID().uuidString.lowercased()
         newMessage.type = "message"
@@ -215,7 +212,7 @@ class RemoteMessagesService: MessagingService {
         newMessage.to = "admin"
         newMessage.subject = nil
         newMessage.body = text
-        newMessage.composedAt = formattedDate
+        newMessage.composedAt = Date()
         newMessage.videoLink = nil
 
         newMessage.uploaded = false

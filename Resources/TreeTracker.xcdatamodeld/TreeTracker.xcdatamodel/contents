@@ -12,7 +12,7 @@
     </entity>
     <entity name="MessageEntity" representedClassName="MessageEntity" syncable="YES" codeGenerationType="class">
         <attribute name="body" optional="YES" attributeType="String"/>
-        <attribute name="composedAt" optional="YES" attributeType="String"/>
+        <attribute name="composedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="from" optional="YES" attributeType="String"/>
         <attribute name="messageId" optional="YES" attributeType="String"/>
         <attribute name="parentMessageId" optional="YES" attributeType="String"/>

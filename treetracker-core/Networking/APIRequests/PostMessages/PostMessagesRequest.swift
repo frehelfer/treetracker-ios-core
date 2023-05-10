@@ -15,7 +15,7 @@ struct PostMessagesRequest: APIRequest {
         let recipient_handle: String?
         let type: String?
         let body: String?
-        let composed_at: String?
+        let composed_at: Date?
     }
 
     let endpoint: Endpoint = .messages
