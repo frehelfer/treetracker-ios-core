@@ -35,14 +35,19 @@ class RemoteMessagesService: MessagingService {
     private func getMessages(planter: Planter, completion: @escaping (Result<[MessageEntity], Error>) -> Void) {
 
         // TODO: change to planter.identifier
-        guard let walletHandle = planter.firstName else {
+        guard let walletHandle = planter.firstName,
+            let planter = planter as? PlanterDetail,
+            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification else {
             completion(.failure(MessagingServiceError.missingPlanterIdentifier))
             return
         }
 
+        let lastSyncMessage = coreDataManager.perform(fetchRequest: lastSyncMessage(for: latestPlanterIdentification))
+        let lastSyncTime = lastSyncMessage?.first?.composedAt ?? .distantPast
+
         let request = GetMessagesRequest(
             walletHandle: walletHandle,
-            lastSyncTime: .distantPast
+            lastSyncTime: lastSyncTime
         )
 
         apiService.performAPIRequest(request: request) { [weak self] result in
@@ -247,6 +252,17 @@ extension MessagingService {
     var messagesToUpload: NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "uploaded == false")
+        return fetchRequest
+    }
+
+    func lastSyncMessage(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
+        let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "planterIdentification == %@", planterIdentification),
+            NSPredicate(format: "uploaded == true")
+        ])
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: false)]
+        fetchRequest.fetchLimit = 1
         return fetchRequest
     }
 }
