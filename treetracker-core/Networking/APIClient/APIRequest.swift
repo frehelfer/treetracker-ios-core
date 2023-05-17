@@ -55,7 +55,16 @@ extension APIRequest {
 
         } else {
             let jsonEncoder = JSONEncoder()
-            jsonEncoder.dateEncodingStrategy = .iso8601
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [
+                .withInternetDateTime,
+                .withFractionalSeconds
+            ]
+            jsonEncoder.dateEncodingStrategy = .custom({ date, encoder in
+                var container = encoder.singleValueContainer()
+                let dateString = formatter.string(from: date)
+                try container.encode(dateString)
+            })
             urlRequest.httpBody = try? jsonEncoder.encode(parameters)
         }
 

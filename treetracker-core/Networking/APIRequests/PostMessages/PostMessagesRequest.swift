@@ -27,7 +27,7 @@ struct PostMessagesRequest: APIRequest {
     init(message: MessageEntity) {
         self.parameters = Parameters(
             id: message.messageId,
-            author_handle: message.planterIdentification?.planterDetail?.identifier,
+            author_handle: message.planterIdentification?.planterDetail?.firstName, // TODO: Change to identifier!!!!
             recipient_handle: message.to,
             type: message.type,
             body: message.body,
