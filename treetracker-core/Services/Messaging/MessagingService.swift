@@ -11,6 +11,7 @@ import CoreData
 public protocol MessagingService {
     func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void)
     func getSavedMessages(planter: Planter) -> [MessageEntity]
+    func getMessagesToPresent(planter: Planter) -> [MessageEntity]
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
     func createMessage(planter: Planter, text: String) throws -> MessageEntity
 }
@@ -47,7 +48,8 @@ class RemoteMessagesService: MessagingService {
 
         let request = GetMessagesRequest(
             walletHandle: walletHandle,
-            lastSyncTime: lastSyncTime
+            lastSyncTime: lastSyncTime,
+            limit: 100
         )
 
         apiService.performAPIRequest(request: request) { [weak self] result in
@@ -66,6 +68,7 @@ class RemoteMessagesService: MessagingService {
     private func postMessages() {
 
         guard let messages = coreDataManager.perform(fetchRequest: messagesToUpload), !messages.isEmpty else {
+            print("✌️ no messages to upload")
             return
         }
 
@@ -134,7 +137,7 @@ class RemoteMessagesService: MessagingService {
             newMessage.subject = message.subject
             newMessage.body = message.body
             newMessage.type = message.type.rawValue
-            newMessage.composedAt = ISO8601DateFormatter().date(from: message.composedAt)
+            newMessage.composedAt = message.composedAt
             newMessage.videoLink = message.videoLink
 
             newMessage.uploaded = true
@@ -196,6 +199,23 @@ class RemoteMessagesService: MessagingService {
 
         return []
     }
+    
+    func getMessagesToPresent(planter: Planter) -> [MessageEntity] {
+        
+        guard
+            let planter = planter as? PlanterDetail,
+            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
+        else {
+            return []
+        }
+            
+        if let messages = coreDataManager.perform(fetchRequest: messagesToPresent(for: latestPlanterIdentification)) {
+            return messages
+        }
+
+        return []
+        
+    }
 
     // MARK: - Create New Message
     func createMessage(planter: Planter, text: String) throws -> MessageEntity {
@@ -236,6 +256,16 @@ extension MessagingService {
     func allMessages(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "planterIdentification == %@", planterIdentification)
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: true)]
+        return fetchRequest
+    }
+    
+    func messagesToPresent(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
+        let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "planterIdentification == %@", planterIdentification),
+            NSPredicate(format: "type == %@", "message")
+        ])
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: true)]
         return fetchRequest
     }
