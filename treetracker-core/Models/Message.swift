@@ -16,7 +16,7 @@ public struct Message: Decodable {
     let subject: String?
     let body: String?
     let type: MessageType
-    let composedAt: String
+    let composedAt: Date
     let videoLink: String?
     let survey: SurveyResponse?
     let surveyResponse: [String]?

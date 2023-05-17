@@ -30,6 +30,10 @@ extension APIRequest {
                             return (label, value)
                         }
                         let dateFormatter = ISO8601DateFormatter()
+                        dateFormatter.formatOptions = [
+                            .withInternetDateTime,
+                            .withFractionalSeconds
+                        ]
                         let formattedDate = dateFormatter.string(from: date)
                         return (label, formattedDate)
                     })

@@ -43,7 +43,25 @@ class APIService: APIServiceProtocol {
                 }
 
                 do {
-                    let decodedObject = try JSONDecoder().decode(Request.ResponseType.self, from: data)
+                    let jsonDecoder = JSONDecoder()
+                    let dateFormatter = ISO8601DateFormatter()
+                    dateFormatter.formatOptions = [
+                        .withInternetDateTime,
+                        .withFractionalSeconds
+                    ]
+                    
+                    jsonDecoder.dateDecodingStrategy = .custom({ decoder in
+                        let container = try decoder.singleValueContainer()
+                        let dateString = try container.decode(String.self)
+                        
+                        if let date = dateFormatter.date(from: dateString) {
+                            return date
+                        }
+                        
+                        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date string \(dateString)")
+                    })
+                    
+                    let decodedObject = try jsonDecoder.decode(Request.ResponseType.self, from: data)
                     completion(.success(decodedObject))
                 } catch {
                     completion(.failure(error))
