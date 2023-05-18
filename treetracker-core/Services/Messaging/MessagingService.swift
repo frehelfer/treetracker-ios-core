@@ -11,7 +11,7 @@ import CoreData
 public protocol MessagingService {
     func getUnreadMessagesCount(for planter: Planter, completion: @escaping (Int) -> Void)
     func getSavedMessages(planter: Planter) -> [MessageEntity]
-    func getMessagesToPresent(planter: Planter) -> [MessageEntity]
+    func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity]
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
     func createMessage(planter: Planter, text: String) throws -> MessageEntity
 }
@@ -200,16 +200,15 @@ class RemoteMessagesService: MessagingService {
         return []
     }
     
-    func getMessagesToPresent(planter: Planter) -> [MessageEntity] {
-        
-        guard
-            let planter = planter as? PlanterDetail,
-            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
-        else {
+    func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity] {
+
+        guard let planter = planter as? PlanterDetail,
+              let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             return []
         }
-            
-        if let messages = coreDataManager.perform(fetchRequest: messagesToPresent(for: latestPlanterIdentification)) {
+
+        if var messages = coreDataManager.perform(fetchRequest: messagesToPresent(for: planterIdentification, offset: offset)) {
+            messages.reverse()
             return messages
         }
 
@@ -260,13 +259,15 @@ extension MessagingService {
         return fetchRequest
     }
     
-    func messagesToPresent(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
+    func messagesToPresent(for planterIdentification: PlanterIdentification, offset: Int) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "planterIdentification == %@", planterIdentification),
             NSPredicate(format: "type == %@", "message")
         ])
-        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: true)]
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: false)]
+        fetchRequest.fetchLimit = 40
+        fetchRequest.fetchOffset = offset
         return fetchRequest
     }
 
