@@ -1,5 +1,15 @@
 import Foundation
 
-enum Endpoint: String {
-    case messages = "messaging/message"
+enum Endpoint {
+    case messages
+    case nextMessages(path: String)
+
+    func getPath() -> String {
+        switch self {
+        case .messages:
+            return "messaging/message"
+        case .nextMessages(let path):
+            return "messaging/\(path)"
+        }
+    }
 }

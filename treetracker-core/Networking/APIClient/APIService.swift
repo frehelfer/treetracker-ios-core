@@ -75,6 +75,5 @@ class APIService: APIServiceProtocol {
 
 // MARK: - Errors
 enum APIServiceError: Swift.Error {
-    case missingRootURL
     case badHTTPURLResponse
 }

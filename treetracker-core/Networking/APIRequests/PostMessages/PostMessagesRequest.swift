@@ -22,7 +22,7 @@ struct PostMessagesRequest: APIRequest {
     let method: HTTPMethod = .POST
     typealias ResponseType = PostMessagesResponse
 
-    let parameters: Parameters
+    let parameters: Parameters?
 
     init(message: MessageEntity) {
         self.parameters = Parameters(

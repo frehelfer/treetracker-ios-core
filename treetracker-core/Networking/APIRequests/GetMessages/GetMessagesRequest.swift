@@ -20,7 +20,7 @@ struct GetMessagesRequest: APIRequest {
     let method: HTTPMethod = .GET
     typealias ResponseType = GetMessagesResponse
 
-    let parameters: Parameters
+    let parameters: Parameters?
 
     init(walletHandle: String, lastSyncTime: Date, offset: Int = 0, limit: Int = 10) {
         self.parameters = Parameters(

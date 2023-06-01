@@ -9,4 +9,9 @@ import Foundation
 
 struct GetMessagesResponse: Decodable {
     let messages: [Message]
+    let links: Link
+    
+    struct Link: Decodable {
+        let next: String?
+    }
 }
