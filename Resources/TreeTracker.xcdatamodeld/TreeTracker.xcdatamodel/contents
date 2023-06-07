@@ -17,12 +17,14 @@
         <attribute name="messageId" optional="YES" attributeType="String"/>
         <attribute name="parentMessageId" optional="YES" attributeType="String"/>
         <attribute name="subject" optional="YES" attributeType="String"/>
+        <attribute name="surveyResponse" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformer" customClassName="[String]"/>
         <attribute name="to" optional="YES" attributeType="String"/>
         <attribute name="type" optional="YES" attributeType="String"/>
         <attribute name="unread" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="uploaded" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="videoLink" optional="YES" attributeType="String"/>
         <relationship name="planterIdentification" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="PlanterIdentification" inverseName="messages" inverseEntity="PlanterIdentification"/>
+        <relationship name="survey" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Survey" inverseName="message" inverseEntity="Survey"/>
     </entity>
     <entity name="PlanterDetail" representedClassName="PlanterDetail" syncable="YES" codeGenerationType="class">
         <attribute name="acceptedTerms" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
@@ -50,6 +52,18 @@
         <relationship name="messages" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="MessageEntity" inverseName="planterIdentification" inverseEntity="MessageEntity"/>
         <relationship name="planter" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="PlanterDetail" inverseName="identification" inverseEntity="PlanterDetail"/>
         <relationship name="trees" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="TreeCapture" inverseName="planterIdentification" inverseEntity="TreeCapture"/>
+    </entity>
+    <entity name="Survey" representedClassName="Survey" syncable="YES" codeGenerationType="class">
+        <attribute name="response" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="uuid" optional="YES" attributeType="String"/>
+        <relationship name="message" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MessageEntity" inverseName="survey" inverseEntity="MessageEntity"/>
+        <relationship name="questions" optional="YES" toMany="YES" deletionRule="Nullify" ordered="YES" destinationEntity="SurveyQuestion" inverseName="survey" inverseEntity="SurveyQuestion"/>
+    </entity>
+    <entity name="SurveyQuestion" representedClassName="SurveyQuestion" syncable="YES" codeGenerationType="class">
+        <attribute name="choices" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformer" customClassName="[String]"/>
+        <attribute name="prompt" optional="YES" attributeType="String"/>
+        <relationship name="survey" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Survey" inverseName="questions" inverseEntity="Survey"/>
     </entity>
     <entity name="TreeCapture" representedClassName="TreeCapture" syncable="YES" codeGenerationType="class">
         <attribute name="bundleId" optional="YES" attributeType="String"/>

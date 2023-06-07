@@ -18,8 +18,8 @@ public struct Message: Decodable {
     let type: MessageType
     let composedAt: Date
     let videoLink: String?
-    let survey: SurveyResponse?
     let surveyResponse: [String]?
+    let survey: Survey?
 
     private enum CodingKeys: String, CodingKey {
         case messageId = "id"
@@ -46,19 +46,21 @@ public extension Message {
         case survey_response
     }
 
-    struct SurveyResponse: Decodable {
-        let surveyResponseId: String
+    struct Survey: Decodable {
+        let surveyId: String
         let title: String
-        let questions: [QuestionResponse]
+        let questions: [Question]
+        let response: Bool
 
         private enum CodingKeys: String, CodingKey {
-            case surveyResponseId = "id"
+            case surveyId = "id"
             case title
             case questions
+            case response
         }
     }
 
-    struct QuestionResponse: Decodable {
+    struct Question: Decodable {
         let prompt: String
         let choices: [String]
     }

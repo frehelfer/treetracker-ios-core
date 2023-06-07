@@ -160,12 +160,26 @@ class RemoteMessagesService: MessagingService {
             newMessage.type = message.type.rawValue
             newMessage.composedAt = message.composedAt
             newMessage.videoLink = message.videoLink
+            newMessage.surveyResponse = message.surveyResponse
+
+            if let survey = message.survey {
+                let newSurvey = Survey(context: coreDataManager.viewContext)
+                newSurvey.uuid = survey.surveyId
+                newSurvey.title = survey.title
+                newSurvey.response = survey.response
+                newSurvey.addToQuestions(NSOrderedSet(array: survey.questions.map { question in
+                    let newSurveyQuestion = SurveyQuestion(context: coreDataManager.viewContext)
+                    newSurveyQuestion.prompt = question.prompt
+                    newSurveyQuestion.choices = question.choices
+                    return newSurveyQuestion
+                }))
+                newMessage.survey = newSurvey
+            }
 
             newMessage.uploaded = true
             newMessage.unread = true
 
             planterIdentification.addToMessages(newMessage)
-            // TODO: add survey & surverResponse variables to coredata.
         }
 
         coreDataManager.saveContext()
