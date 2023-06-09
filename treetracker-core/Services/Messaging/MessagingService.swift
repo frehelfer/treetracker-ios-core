@@ -14,6 +14,7 @@ public protocol MessagingService {
     func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity]
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
     func createMessage(planter: Planter, text: String) throws -> MessageEntity
+    func createSurveyResponse(planter: Planter, surveyId: String, surveyResponse: [String])
 }
 
 // MARK: - Errors
@@ -248,6 +249,69 @@ class RemoteMessagesService: MessagingService {
 
         coreDataManager.saveContext()
         return newMessage
+    }
+    
+    func createSurveyResponse(planter: Planter, surveyId: String, surveyResponse: [String]) {
+
+        // TODO: change to planter.identifier
+        guard
+            let handle = planter.firstName,
+            let planter = planter as? PlanterDetail,
+            let planterIdentification = planter.latestIdentification as? PlanterIdentification
+        else {
+            print(MessagingServiceError.missingPlanterIdentifier)
+            return
+        }
+
+        var surveyMessage: NSFetchRequest<MessageEntity> {
+            let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+            fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "planterIdentification == %@", planterIdentification),
+                NSPredicate(format: "survey.uuid == %@", surveyId),
+                NSPredicate(format: "survey.response == false")
+            ])
+            fetchRequest.fetchLimit = 1
+            return fetchRequest
+        }
+
+        guard let response = coreDataManager.perform(fetchRequest: surveyMessage),
+              let message = response.first,
+              let survey = message.survey else {
+            return
+        }
+
+        let newMessage = MessageEntity(context: coreDataManager.viewContext)
+        newMessage.messageId = UUID().uuidString.lowercased()
+        newMessage.type = "survey_response"
+        newMessage.from = handle
+        newMessage.to = "admin"
+        newMessage.subject = message.subject
+        newMessage.body = message.body
+        newMessage.composedAt = Date()
+        newMessage.videoLink = message.videoLink
+
+        newMessage.uploaded = false
+        newMessage.unread = false
+
+        let newSurvey = SurveyEntity(context: coreDataManager.viewContext)
+        newSurvey.uuid = surveyId
+        newSurvey.title = survey.title
+        newSurvey.response = true
+
+        if let questions = survey.questions?.array as? [SurveyQuestion] {
+            newSurvey.addToQuestions(NSOrderedSet(array: questions.map { returnedQuestion in
+                let question = SurveyQuestion(context: coreDataManager.viewContext)
+                question.prompt = returnedQuestion.prompt
+                question.choices = returnedQuestion.choices
+                return question
+            }))
+        }
+
+        newMessage.survey = newSurvey
+        newMessage.surveyResponse = surveyResponse
+
+        planterIdentification.addToMessages(newMessage)
+        coreDataManager.saveContext()
     }
 }
 

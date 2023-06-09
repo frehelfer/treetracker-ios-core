@@ -10,12 +10,15 @@ import Foundation
 struct PostMessagesRequest: APIRequest {
 
     struct Parameters: Encodable {
-        let id: String?
+//        let id: String?
         let author_handle: String?
         let recipient_handle: String?
         let type: String?
         let body: String?
+        let subject: String?
         let composed_at: Date?
+        let survey_response: [String]?
+        let survey_id: String?
     }
 
     let endpoint: Endpoint = .messages
@@ -26,11 +29,15 @@ struct PostMessagesRequest: APIRequest {
 
     init(message: MessageEntity) {
         self.parameters = Parameters(
-            id: message.messageId,
+//            id: message.messageId,
             author_handle: message.planterIdentification?.planterDetail?.firstName, // TODO: Change to identifier!!!!
             recipient_handle: message.to,
             type: message.type,
             body: message.body,
-            composed_at: message.composedAt)
+            subject: message.subject,
+            composed_at: message.composedAt,
+            survey_response: message.surveyResponse,
+            survey_id: message.survey?.uuid
+        )
     }
 }
