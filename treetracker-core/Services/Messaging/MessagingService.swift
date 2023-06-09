@@ -163,7 +163,7 @@ class RemoteMessagesService: MessagingService {
             newMessage.surveyResponse = message.surveyResponse
 
             if let survey = message.survey {
-                let newSurvey = Survey(context: coreDataManager.viewContext)
+                let newSurvey = SurveyEntity(context: coreDataManager.viewContext)
                 newSurvey.uuid = survey.surveyId
                 newSurvey.title = survey.title
                 newSurvey.response = survey.response
