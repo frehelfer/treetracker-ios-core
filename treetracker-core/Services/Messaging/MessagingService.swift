@@ -146,11 +146,12 @@ class RemoteMessagesService: MessagingService {
     private func saveMessages(planter: Planter, newMessages: [Message]) {
 
         guard let planter = planter as? PlanterDetail,
-              let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
+              let planterIdentification = planter.latestIdentification as? PlanterIdentification,
+              !newMessages.isEmpty else {
             return
         }
 
-        for message in newMessages {
+        planterIdentification.addToMessages(NSSet(array: newMessages.map({ message in
             let newMessage = MessageEntity(context: coreDataManager.viewContext)
             newMessage.messageId = message.messageId
             newMessage.parentMessageId = message.parentMessageId
@@ -162,6 +163,9 @@ class RemoteMessagesService: MessagingService {
             newMessage.composedAt = message.composedAt
             newMessage.videoLink = message.videoLink
             newMessage.surveyResponse = message.surveyResponse
+            newMessage.uploaded = true
+            newMessage.unread = true
+            newMessage.isHidden = false
 
             if let survey = message.survey {
                 let newSurvey = SurveyEntity(context: coreDataManager.viewContext)
@@ -177,10 +181,29 @@ class RemoteMessagesService: MessagingService {
                 newMessage.survey = newSurvey
             }
 
-            newMessage.uploaded = true
-            newMessage.unread = true
+            return newMessage
+        })))
 
-            planterIdentification.addToMessages(newMessage)
+        // checks whether the survey has been answered and hides it
+        if let surveyMessages: [MessageEntity] = coreDataManager.perform(fetchRequest: allSurveyMessages(for: planterIdentification)) {
+            for currentMessage in surveyMessages {
+                if !currentMessage.isHidden {
+                    let currentUUID = currentMessage.survey?.uuid
+
+                    for otherMessage in surveyMessages {
+                        if currentMessage != otherMessage {
+
+                            if otherMessage.survey?.uuid == currentUUID {
+                                currentMessage.isHidden = true
+                                currentMessage.unread = false
+                                otherMessage.isHidden = true
+                                otherMessage.unread = false
+                                break
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         coreDataManager.saveContext()
@@ -244,6 +267,7 @@ class RemoteMessagesService: MessagingService {
 
         newMessage.uploaded = false
         newMessage.unread = false
+        newMessage.isHidden = false
 
         latestPlanterIdentification.addToMessages(newMessage)
 
@@ -280,6 +304,8 @@ class RemoteMessagesService: MessagingService {
             return
         }
 
+        message.isHidden = true
+
         let newMessage = MessageEntity(context: coreDataManager.viewContext)
         newMessage.messageId = UUID().uuidString.lowercased()
         newMessage.type = "survey_response"
@@ -292,6 +318,7 @@ class RemoteMessagesService: MessagingService {
 
         newMessage.uploaded = false
         newMessage.unread = false
+        newMessage.isHidden = true
 
         let newSurvey = SurveyEntity(context: coreDataManager.viewContext)
         newSurvey.uuid = surveyId
@@ -320,8 +347,20 @@ extension MessagingService {
 
     func allMessages(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "planterIdentification == %@", planterIdentification)
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "planterIdentification == %@", planterIdentification),
+            NSPredicate(format: "isHidden == false")
+        ])
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: true)]
+        return fetchRequest
+    }
+
+    func allSurveyMessages(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
+        let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "planterIdentification == %@", planterIdentification),
+            NSPredicate(format: "survey != nil")
+        ])
         return fetchRequest
     }
 

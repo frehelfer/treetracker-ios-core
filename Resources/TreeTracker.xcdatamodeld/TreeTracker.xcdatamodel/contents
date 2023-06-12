@@ -14,6 +14,7 @@
         <attribute name="body" optional="YES" attributeType="String"/>
         <attribute name="composedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="from" optional="YES" attributeType="String"/>
+        <attribute name="isHidden" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="messageId" optional="YES" attributeType="String"/>
         <attribute name="parentMessageId" optional="YES" attributeType="String"/>
         <attribute name="subject" optional="YES" attributeType="String"/>

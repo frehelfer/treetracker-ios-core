@@ -15,7 +15,6 @@ struct PostMessagesRequest: APIRequest {
         let recipient_handle: String?
         let type: String?
         let body: String?
-        let subject: String?
         let composed_at: Date?
         let survey_response: [String]?
         let survey_id: String?
@@ -34,7 +33,6 @@ struct PostMessagesRequest: APIRequest {
             recipient_handle: message.to,
             type: message.type,
             body: message.body,
-            subject: message.subject,
             composed_at: message.composedAt,
             survey_response: message.surveyResponse,
             survey_id: message.survey?.uuid
