@@ -10,6 +10,7 @@ import CoreData
 
 public protocol MessagingService {
     func syncMessages(for planter: Planter)
+    func getUnreadMessagesCount(for planter: Planter) -> Int
     func getSavedMessages(planter: Planter) -> [MessageEntity]
     func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity]
     func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
@@ -240,6 +241,17 @@ class RemoteMessagesService: MessagingService {
 
         return []
 
+    }
+    
+    func getUnreadMessagesCount(for planter: Planter) -> Int {
+
+        guard let planter = planter as? PlanterDetail,
+              let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
+            return 0
+        }
+
+        let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: planterIdentification)) ?? []
+        return messages.count
     }
 
     // MARK: - Create New Message
