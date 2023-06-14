@@ -10,10 +10,10 @@ import CoreData
 
 public protocol MessagingService {
     func syncMessages(for planter: Planter)
+    func updateUnreadMessages(messages: [MessageEntity])
     func getUnreadMessagesCount(for planter: Planter) -> Int
     func getSavedMessages(planter: Planter) -> [MessageEntity]
     func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity]
-    func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity]
     func createMessage(planter: Planter, text: String) throws -> MessageEntity
     func createSurveyResponse(planter: Planter, surveyId: String, surveyResponse: [String])
 }
@@ -135,14 +135,13 @@ class RemoteMessagesService: MessagingService {
         coreDataManager.saveContext()
     }
 
-    func updateUnreadMessages(messages: [MessageEntity]) -> [MessageEntity] {
+    func updateUnreadMessages(messages: [MessageEntity]) {
         messages.forEach { message in
             if message.unread == true {
                 message.unread = false
             }
         }
         coreDataManager.saveContext()
-        return messages
     }
 
     // MARK: - Save Messages on DB
@@ -215,18 +214,12 @@ class RemoteMessagesService: MessagingService {
     // MARK: - Get Messages from DB
     func getSavedMessages(planter: Planter) -> [MessageEntity] {
 
-        guard
-            let planter = planter as? PlanterDetail,
-            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
-        else {
+        guard let planter = planter as? PlanterDetail,
+              let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             return []
         }
 
-        if let messages = coreDataManager.perform(fetchRequest: allMessages(for: latestPlanterIdentification)) {
-            return messages
-        }
-
-        return []
+        return coreDataManager.perform(fetchRequest: allMessages(for: planterIdentification)) ?? []
     }
 
     func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity] {
@@ -236,13 +229,7 @@ class RemoteMessagesService: MessagingService {
             return []
         }
 
-        if var messages = coreDataManager.perform(fetchRequest: messagesToPresent(for: planterIdentification, offset: offset)) {
-            messages.reverse()
-            return messages
-        }
-
-        return []
-
+        return coreDataManager.perform(fetchRequest: messagesToPresent(for: planterIdentification, offset: offset))?.reversed() ?? []
     }
     
     func getUnreadMessagesCount(for planter: Planter) -> Int {
@@ -252,7 +239,7 @@ class RemoteMessagesService: MessagingService {
             return 0
         }
 
-        let messages = coreDataManager.perform(fetchRequest: messagesUnread(for: planterIdentification)) ?? []
+        let messages = coreDataManager.perform(fetchRequest: unreadMessages(for: planterIdentification)) ?? []
         return messages.count
     }
 
@@ -260,11 +247,9 @@ class RemoteMessagesService: MessagingService {
     func createMessage(planter: Planter, text: String) throws -> MessageEntity {
  
         // TODO: change to planter.identifier
-        guard
-            let handle = planter.firstName,
-            let planter = planter as? PlanterDetail,
-            let latestPlanterIdentification = planter.latestIdentification as? PlanterIdentification
-        else {
+        guard let handle = planter.firstName,
+              let planter = planter as? PlanterDetail,
+              let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             throw MessagingServiceError.missingPlanterIdentifier
         }
 
@@ -283,7 +268,7 @@ class RemoteMessagesService: MessagingService {
         newMessage.unread = false
         newMessage.isHidden = false
 
-        latestPlanterIdentification.addToMessages(newMessage)
+        planterIdentification.addToMessages(newMessage)
 
         coreDataManager.saveContext()
         return newMessage
@@ -292,27 +277,13 @@ class RemoteMessagesService: MessagingService {
     func createSurveyResponse(planter: Planter, surveyId: String, surveyResponse: [String]) {
 
         // TODO: change to planter.identifier
-        guard
-            let handle = planter.firstName,
-            let planter = planter as? PlanterDetail,
-            let planterIdentification = planter.latestIdentification as? PlanterIdentification
-        else {
-            print(MessagingServiceError.missingPlanterIdentifier)
+        guard let handle = planter.firstName,
+              let planter = planter as? PlanterDetail,
+              let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             return
         }
 
-        var surveyMessage: NSFetchRequest<MessageEntity> {
-            let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
-            fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(format: "planterIdentification == %@", planterIdentification),
-                NSPredicate(format: "survey.uuid == %@", surveyId),
-                NSPredicate(format: "survey.response == false")
-            ])
-            fetchRequest.fetchLimit = 1
-            return fetchRequest
-        }
-
-        guard let response = coreDataManager.perform(fetchRequest: surveyMessage),
+        guard let response = coreDataManager.perform(fetchRequest: surveyMessage(for: planterIdentification, surveyID: surveyId)),
               let message = response.first,
               let survey = message.survey else {
             return
@@ -390,7 +361,7 @@ extension MessagingService {
         return fetchRequest
     }
 
-    func messagesUnread(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
+    func unreadMessages(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
         fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "planterIdentification == %@", planterIdentification),
@@ -412,6 +383,17 @@ extension MessagingService {
             NSPredicate(format: "uploaded == true")
         ])
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: false)]
+        fetchRequest.fetchLimit = 1
+        return fetchRequest
+    }
+
+    func surveyMessage(for planterIdentification: PlanterIdentification, surveyID: String) -> NSFetchRequest<MessageEntity> {
+        let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "planterIdentification == %@", planterIdentification),
+            NSPredicate(format: "survey.uuid == %@", surveyID),
+            NSPredicate(format: "survey.response == false")
+        ])
         fetchRequest.fetchLimit = 1
         return fetchRequest
     }
