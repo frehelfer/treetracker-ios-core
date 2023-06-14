@@ -63,6 +63,7 @@ class RemoteMessagesService: MessagingService {
                 if let nextPage = response.links.next {
                     getNextPageMessages(planter: planter, path: nextPage)
                 } else {
+                    NotificationCenter.default.post(name: NSNotification.Name("didFinishFetchingMessages"), object: nil)
                     postMessages()
                 }
 
@@ -86,6 +87,7 @@ class RemoteMessagesService: MessagingService {
                 if let nextPage = response.links.next {
                     getNextPageMessages(planter: planter, path: nextPage)
                 } else {
+                    NotificationCenter.default.post(name: NSNotification.Name("didFinishFetchingMessages"), object: nil)
                     postMessages()
                 }
 
