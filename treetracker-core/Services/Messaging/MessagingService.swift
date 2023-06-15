@@ -12,7 +12,7 @@ public protocol MessagingService {
     func syncMessages(for planter: Planter)
     func updateUnreadMessages(messages: [MessageEntity])
     func getUnreadMessagesCount(for planter: Planter) -> Int
-    func getSavedMessages(planter: Planter) -> [MessageEntity]
+    func getChatListMessages(planter: Planter) -> [MessageEntity]
     func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity]
     func createMessage(planter: Planter, text: String) throws -> MessageEntity
     func createSurveyResponse(planter: Planter, surveyId: String, surveyResponse: [String])
@@ -212,14 +212,46 @@ class RemoteMessagesService: MessagingService {
     }
 
     // MARK: - Get Messages from DB
-    func getSavedMessages(planter: Planter) -> [MessageEntity] {
+    func getChatListMessages(planter: Planter) -> [MessageEntity] {
 
         guard let planter = planter as? PlanterDetail,
               let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             return []
         }
 
-        return coreDataManager.perform(fetchRequest: allMessages(for: planterIdentification)) ?? []
+        var otherTypeMessages: NSFetchRequest<MessageEntity> {
+            let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+            fetchRequest.predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSCompoundPredicate(andPredicateWithSubpredicates: [
+                    NSPredicate(format: "planterIdentification == %@", planterIdentification),
+                    NSPredicate(format: "type == %@", "message"),
+                    NSPredicate(format: "unread == true"),
+                ]),
+                NSCompoundPredicate(andPredicateWithSubpredicates: [
+                    NSPredicate(format: "planterIdentification == %@", planterIdentification),
+                    NSPredicate(format: "type != %@", "message"),
+                    NSPredicate(format: "isHidden == false")
+                ])
+            ])
+            return fetchRequest
+        }
+
+        var oneMessageOfTypeMessage: NSFetchRequest<MessageEntity> {
+            let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
+            fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "planterIdentification == %@", planterIdentification),
+                NSPredicate(format: "type == %@", "message")
+            ])
+            fetchRequest.fetchLimit = 1
+            return fetchRequest
+        }
+
+        let firstFetch = coreDataManager.perform(fetchRequest: otherTypeMessages) ?? []
+        if !firstFetch.contains(where: { $0.type == "message" }) {
+            let secondFetch = coreDataManager.perform(fetchRequest: oneMessageOfTypeMessage) ?? []
+            return firstFetch + secondFetch
+        }
+        return firstFetch
     }
 
     func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity] {
@@ -329,16 +361,6 @@ class RemoteMessagesService: MessagingService {
 
 // MARK: - Fetch Requests
 extension MessagingService {
-
-    func allMessages(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
-        let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
-        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "planterIdentification == %@", planterIdentification),
-            NSPredicate(format: "isHidden == false")
-        ])
-        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "composedAt", ascending: true)]
-        return fetchRequest
-    }
 
     func allSurveyMessages(for planterIdentification: PlanterIdentification) -> NSFetchRequest<MessageEntity> {
         let fetchRequest: NSFetchRequest<MessageEntity> = MessageEntity.fetchRequest()
