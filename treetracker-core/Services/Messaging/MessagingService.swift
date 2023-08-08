@@ -57,7 +57,21 @@ class RemoteMessagesService: MessagingService {
             switch result {
             case .success(let response):
                 guard let self, let response else { return }
-                saveMessages(planter: planter, newMessages: response.messages)
+
+                // just to debug - it removes the survey_response
+                var messages: [Message] = []
+                for message in response.messages {
+                    if let surveyResponse = message.survey?.response {
+                        if surveyResponse == false {
+                            messages.append(message)
+                        }
+                    } else {
+                        messages.append(message)
+                    }
+                }
+
+                saveMessages(planter: planter, newMessages: messages)
+                
                 print("🟢 Fetched \(response.messages.count) remote messages")
 
                 if let nextPage = response.links.next {
@@ -81,7 +95,20 @@ class RemoteMessagesService: MessagingService {
             switch result {
             case .success(let response):
                 guard let self, let response else { return }
-                saveMessages(planter: planter, newMessages: response.messages)
+
+                // just to debug - it removes the survey_response
+                var messages: [Message] = []
+                for message in response.messages {
+                    if let surveyResponse = message.survey?.response {
+                        if surveyResponse == false {
+                            messages.append(message)
+                        }
+                    } else {
+                        messages.append(message)
+                    }
+                }
+
+                saveMessages(planter: planter, newMessages: messages)
                 print("🟢 Fetched \(response.messages.count) remote messages on next page.")
 
                 if let nextPage = response.links.next {
