@@ -72,7 +72,7 @@ class RemoteMessagesService: MessagingService {
 
                 saveMessages(planter: planter, newMessages: messages)
                 
-                print("🟢 Fetched \(response.messages.count) remote messages")
+                Logger.log("🟢 Fetched \(response.messages.count) remote messages")
 
                 if let nextPage = response.links.next {
                     getNextPageMessages(planter: planter, path: nextPage)
@@ -82,7 +82,7 @@ class RemoteMessagesService: MessagingService {
                 }
 
             case .failure(let error):
-                print("🚨 Get remote message Error: \(error)")
+                Logger.log("🚨 Get remote message Error: \(error)")
             }
         }
     }
@@ -109,7 +109,7 @@ class RemoteMessagesService: MessagingService {
                 }
 
                 saveMessages(planter: planter, newMessages: messages)
-                print("🟢 Fetched \(response.messages.count) remote messages on next page.")
+                Logger.log("🟢 Fetched \(response.messages.count) remote messages on next page.")
 
                 if let nextPage = response.links.next {
                     getNextPageMessages(planter: planter, path: nextPage)
@@ -119,7 +119,7 @@ class RemoteMessagesService: MessagingService {
                 }
 
             case .failure(let error):
-                print("🚨 Get remote next page message Error: \(error)")
+                Logger.log("🚨 Get remote next page message Error: \(error)")
             }
         }
     }
@@ -128,7 +128,7 @@ class RemoteMessagesService: MessagingService {
 
         guard let messagesToPost = coreDataManager.perform(fetchRequest: messagesToUpload),
               !messagesToPost.isEmpty else {
-            print("✌️ no messages to upload")
+            Logger.log("✌️ no messages to upload")
             return
         }
 
@@ -146,12 +146,12 @@ class RemoteMessagesService: MessagingService {
             case .success(_):
                 guard let self else { return }
                 updateUploadedMessage(message)
-                print("✅ Upload Messages Successfully")
+                Logger.log("✅ Upload Messages Successfully")
                 messages.removeLast()
                 postMessage(messagesToPost: messages)
    
             case .failure(let error):
-                print("🚨 Post Message Error: \(error)")
+                Logger.log("🚨 Post Message Error: \(error)")
             }
         }
     }
