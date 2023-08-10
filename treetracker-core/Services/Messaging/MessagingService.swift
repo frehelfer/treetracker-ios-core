@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 public protocol MessagingService {
-    func syncMessages(for planter: Planter)
+    func syncMessages(for planter: Planter, completion: @escaping (Result<Void, Error>) -> Void)
     func updateUnreadMessages(messages: [MessageEntity])
     func getUnreadMessagesCount(for planter: Planter) -> Int
     func getChatListMessages(planter: Planter) -> [MessageEntity]
@@ -35,12 +35,13 @@ class RemoteMessagesService: MessagingService {
     }
 
     // MARK: - Sync Messages with Server
-    func syncMessages(for planter: Planter) {
+    func syncMessages(for planter: Planter, completion: @escaping (Result<Void, Error>) -> Void) {
 
         // TODO: change to planter.identifier
         guard let walletHandle = planter.firstName,
             let planter = planter as? PlanterDetail,
             let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
+            completion(.failure(MessagingServiceError.missingPlanterIdentifier))
             return
         }
 
@@ -75,19 +76,24 @@ class RemoteMessagesService: MessagingService {
                 Logger.log("🟢 Fetched \(response.messages.count) remote messages")
 
                 if let nextPage = response.links.next {
-                    getNextPageMessages(planter: planter, path: nextPage)
+                    getNextPageMessages(planter: planter, path: nextPage) { result in
+                        completion(result)
+                    }
                 } else {
                     NotificationCenter.default.post(name: NSNotification.Name("didFinishFetchingMessages"), object: nil)
-                    postMessages()
+                    postMessages { result in
+                        completion(result)
+                    }
                 }
 
             case .failure(let error):
                 Logger.log("🚨 Get remote message Error: \(error)")
+                completion(.failure(error))
             }
         }
     }
 
-    private func getNextPageMessages(planter: Planter, path: String) {
+    private func getNextPageMessages(planter: Planter, path: String, completion: @escaping (Result<Void, Error>) -> Void) {
 
         let request = GetNextMessagesRequest(path: path)
 
@@ -112,10 +118,14 @@ class RemoteMessagesService: MessagingService {
                 Logger.log("🟢 Fetched \(response.messages.count) remote messages on next page.")
 
                 if let nextPage = response.links.next {
-                    getNextPageMessages(planter: planter, path: nextPage)
+                    getNextPageMessages(planter: planter, path: nextPage) { result in
+                        completion(result)
+                    }
                 } else {
                     NotificationCenter.default.post(name: NSNotification.Name("didFinishFetchingMessages"), object: nil)
-                    postMessages()
+                    postMessages { result in
+                        completion(result)
+                    }
                 }
 
             case .failure(let error):
@@ -124,19 +134,25 @@ class RemoteMessagesService: MessagingService {
         }
     }
 
-    private func postMessages() {
+    private func postMessages(completion: @escaping (Result<Void, Error>) -> Void) {
 
         guard let messagesToPost = coreDataManager.perform(fetchRequest: messagesToUpload),
               !messagesToPost.isEmpty else {
             Logger.log("✌️ no messages to upload")
+            completion(.success(()))
             return
         }
 
-        postMessage(messagesToPost: messagesToPost)
+        postMessage(messagesToPost: messagesToPost) { result in
+            completion(result)
+        }
     }
 
-    private func postMessage(messagesToPost: [MessageEntity]) {
-        guard let message = messagesToPost.last else { return }
+    private func postMessage(messagesToPost: [MessageEntity], completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let message = messagesToPost.last else {
+            completion(.success(()))
+            return
+        }
         var messages = messagesToPost
 
         let request = PostMessagesRequest(message: message)
@@ -148,10 +164,12 @@ class RemoteMessagesService: MessagingService {
                 updateUploadedMessage(message)
                 Logger.log("✅ Upload Messages Successfully")
                 messages.removeLast()
-                postMessage(messagesToPost: messages)
-   
+                postMessage(messagesToPost: messages) { result in
+                    completion(result)
+                }
             case .failure(let error):
                 Logger.log("🚨 Post Message Error: \(error)")
+                completion(.failure(error))
             }
         }
     }
