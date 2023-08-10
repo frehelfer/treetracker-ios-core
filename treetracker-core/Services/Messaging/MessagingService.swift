@@ -80,7 +80,6 @@ class RemoteMessagesService: MessagingService {
                         completion(result)
                     }
                 } else {
-                    NotificationCenter.default.post(name: NSNotification.Name("didFinishFetchingMessages"), object: nil)
                     postMessages { result in
                         completion(result)
                     }
@@ -122,7 +121,6 @@ class RemoteMessagesService: MessagingService {
                         completion(result)
                     }
                 } else {
-                    NotificationCenter.default.post(name: NSNotification.Name("didFinishFetchingMessages"), object: nil)
                     postMessages { result in
                         completion(result)
                     }
@@ -130,6 +128,7 @@ class RemoteMessagesService: MessagingService {
 
             case .failure(let error):
                 Logger.log("🚨 Get remote next page message Error: \(error)")
+                completion(.failure(error))
             }
         }
     }
