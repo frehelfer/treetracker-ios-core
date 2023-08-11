@@ -37,8 +37,7 @@ class RemoteMessagesService: MessagingService {
     // MARK: - Sync Messages with Server
     func syncMessages(for planter: Planter, completion: @escaping (Result<Void, Error>) -> Void) {
 
-        // TODO: change to planter.identifier
-        guard let walletHandle = planter.firstName,
+        guard let walletHandle = planter.identifier,
             let planter = planter as? PlanterDetail,
             let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             completion(.failure(MessagingServiceError.missingPlanterIdentifier))
@@ -321,9 +320,8 @@ class RemoteMessagesService: MessagingService {
 
     // MARK: - Create New Message
     func createMessage(planter: Planter, text: String) throws -> MessageEntity {
- 
-        // TODO: change to planter.identifier
-        guard let handle = planter.firstName,
+
+        guard let handle = planter.identifier,
               let planter = planter as? PlanterDetail,
               let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             throw MessagingServiceError.missingPlanterIdentifier
@@ -352,8 +350,7 @@ class RemoteMessagesService: MessagingService {
     
     func createSurveyResponse(planter: Planter, surveyId: String, surveyResponse: [String]) {
 
-        // TODO: change to planter.identifier
-        guard let handle = planter.firstName,
+        guard let handle = planter.identifier,
               let planter = planter as? PlanterDetail,
               let planterIdentification = planter.latestIdentification as? PlanterIdentification else {
             return
