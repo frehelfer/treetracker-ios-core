@@ -12,6 +12,7 @@ public protocol MessagingService {
     func syncMessages(for planter: Planter, completion: @escaping (Result<Void, Error>) -> Void)
     func updateUnreadMessages(messages: [MessageEntity])
     func getUnreadMessagesCount(for planter: Planter) -> Int
+    func getLastSyncTime() -> Date?
     func getChatListMessages(planter: Planter) -> [MessageEntity]
     func getMessagesToPresent(planter: Planter, offset: Int) -> [MessageEntity]
     func createMessage(planter: Planter, text: String) throws -> MessageEntity
@@ -28,10 +29,16 @@ class RemoteMessagesService: MessagingService {
 
     private let apiService: APIServiceProtocol
     private let coreDataManager: CoreDataManaging
+    private let userDefaultsMessagingService: UserDefaultsMessagingProtocol
 
-    init(apiService: APIServiceProtocol, coreDataManager: CoreDataManaging) {
+    init(
+        apiService: APIServiceProtocol,
+        coreDataManager: CoreDataManaging,
+        userDefaultsMessagingService: UserDefaultsMessagingProtocol
+    ) {
         self.apiService = apiService
         self.coreDataManager = coreDataManager
+        self.userDefaultsMessagingService = userDefaultsMessagingService
     }
 
     // MARK: - Sync Messages with Server
@@ -137,6 +144,7 @@ class RemoteMessagesService: MessagingService {
         guard let messagesToPost = coreDataManager.perform(fetchRequest: messagesToUpload),
               !messagesToPost.isEmpty else {
             Logger.log("✌️ no messages to upload")
+            userDefaultsMessagingService.updateLastSyncTime()
             completion(.success(()))
             return
         }
@@ -148,6 +156,7 @@ class RemoteMessagesService: MessagingService {
 
     private func postMessage(messagesToPost: [MessageEntity], completion: @escaping (Result<Void, Error>) -> Void) {
         guard let message = messagesToPost.last else {
+            userDefaultsMessagingService.updateLastSyncTime()
             completion(.success(()))
             return
         }
@@ -316,6 +325,10 @@ class RemoteMessagesService: MessagingService {
 
         let messages = coreDataManager.perform(fetchRequest: unreadMessages(for: planterIdentification)) ?? []
         return messages.count
+    }
+    
+    func getLastSyncTime() -> Date? {
+        userDefaultsMessagingService.getLastSyncTime()
     }
 
     // MARK: - Create New Message
